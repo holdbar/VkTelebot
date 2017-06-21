@@ -1,6 +1,6 @@
 # coding: utf8
 
-import config
+import local_config as config
 import tornado
 import vk
 from tornado.httpserver import HTTPServer
@@ -101,17 +101,29 @@ class VkPeriodicCallback(PeriodicCallback):
         self.bot = bot
 
 
-    def update_user_dict(self, dialog_id, last_message_id):
+    def update_user_dict(self, dialog_id, last_message_id, user_id):
         """Update dictionary where last messages and dialogs id are stored.
         
         Helps to prevent downloading already downloaded messages.
         """
         self.dialog_id = str(dialog_id)
         self.last_message_id = int(last_message_id)
+        self.user_id = str(user_id)
 
-        self.user_dict[self.dialog_id] = {'last_message_id':self.last_message_id, 
+        self.user_dict[self.user_id]['dialog_dict'][self.dialog_id] = {'last_message_id':self.last_message_id, 
                                                              'dialog_id' : int(dialog_id)}
 
+
+    def set_response_addressat(self, user_dict, user_id, addressat_id):
+        """Updates user_dict to set response addressat VK ID.
+
+        ID is retrieved by choosing message in telegram."""
+        self.user_dict = user_dict
+        self.user_id = str(user_id)
+        self.addressat_id = addressat_id
+
+        self.user_dict[self.user_id]['addressat_id'] = self.addressat_id
+        
 
 
     def get(self):
@@ -119,7 +131,7 @@ class VkPeriodicCallback(PeriodicCallback):
 
         Then pushes messages to telegram."""
         
-        # choose user to check updates
+        # choose user to check updates(!!TODO CONNECT TO DB AND RUN LOOP TO CHOOSE USER)
         user_id = config.USERID
 
         # authentication with user's credentials
@@ -238,7 +250,7 @@ def main():
     bot = AppTeleBot(TOKEN, request_queue, response_queue)
 
     user_id = config.USERID
-    user_dict = {}
+    user_dict = {str(user_id):{'dialog_dict':{}}}
 
 
     @bot.message_handler(commands=['start','help'])
