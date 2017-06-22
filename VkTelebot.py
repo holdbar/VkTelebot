@@ -123,7 +123,16 @@ class VkPeriodicCallback(PeriodicCallback):
         self.addressat_id = addressat_id
 
         self.user_dict[self.user_id]['addressat_id'] = self.addressat_id
-        
+
+
+
+    def mark_messages_read(self, peer_id):
+        """Marks chosen dialog as read."""
+        session = vk.AuthSession(app_id=config.APPID, user_login=config.LOGIN, 
+                                user_password=config.PASSWORD, scope='messages')
+        vk_api = vk.API(session, v='5.38')
+
+        vk_api.messages.markAsRead(peer_id=peer_id)  # for chat peer_id = 2000000000 + chat_id       
 
 
     def get(self):
