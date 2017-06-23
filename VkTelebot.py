@@ -6,7 +6,8 @@ import vk
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import PeriodicCallback, IOLoop
 from tornado.queues import Queue, QueueEmpty
-from telebot import TeleBot
+from telebot import TeleBot, types
+import pdb
 
 
 
@@ -108,8 +109,7 @@ class VkPeriodicCallback(PeriodicCallback):
         """
         self.dialog_id = str(dialog_id)
         self.last_message_id = int(last_message_id)
-        self.user_id = str(user_id)
-
+        self.user_id = user_id
         self.user_dict[self.user_id]['dialog_dict'][self.dialog_id] = {'last_message_id':self.last_message_id, 
                                                              'dialog_id' : int(dialog_id)}
 
@@ -141,15 +141,15 @@ class VkPeriodicCallback(PeriodicCallback):
         Then pushes messages to telegram."""
         
         # choose user to check updates(!!TODO CONNECT TO DB AND RUN LOOP TO CHOOSE USER)
-        user_id = config.USERID
+        user_id = str(config.USERID)
 
         # authentication with user's credentials
         session = vk.AuthSession(app_id=config.APPID, user_login=config.LOGIN, 
                                 user_password=config.PASSWORD, scope='messages')
         vk_api = vk.API(session, v='5.38')
 
-        if user_id == config.USERID:
-            result_list = self.get_messages(vk_api)
+        if int(user_id) == config.USERID:
+            result_list = self.get_messages(vk_api, user_id)
             text = ''
             for item in result_list:
                 one_text = ''
@@ -160,12 +160,14 @@ class VkPeriodicCallback(PeriodicCallback):
             if text == '':
                 pass
             else:
-                self.bot.send_message(user_id, text)
+                keyboard = types.InlineKeyboardMarkup()
+                keyboard.add(types.InlineKeyboardButton(text=text, callback_data=item[2]))
+                self.bot.send_message(user_id, "You've got a letter", reply_markup=keyboard)
         else:
             self.bot.send_message(user_id, 'You are not authorized')
 
 
-    def get_messages(self, vk_api):
+    def get_messages(self, vk_api, user_id):
         """Get dialogs with unread messages.
 
         Then it prints user, user_id and messages.
@@ -180,19 +182,19 @@ class VkPeriodicCallback(PeriodicCallback):
             last_message_id = last_message.get('id')
             if last_message.get('chat_id'):
                 chat_name = last_message.get('title')
-                dialog_id = str(last_message.get('chat_id'))
+                dialog_id = str(2000000000 + last_message.get('chat_id'))
             else:
                 chat_name = ''
                 dialog_id = str(last_message.get('user_id'))
-            if dialog_id in self.user_dict:
-                if int(last_message_id) <= self.user_dict[dialog_id]['last_message_id']:
+            if dialog_id in self.user_dict[user_id]['dialog_dict']:
+                if int(last_message_id) <= self.user_dict[user_id]['dialog_dict'][dialog_id]['last_message_id']:
                     pass
                 else:
-                    self.update_user_dict(dialog_id, last_message_id)
+                    self.update_user_dict(dialog_id, last_message_id, user_id)
                     result_list.append(self.get_unread_history(vk_api, dialog_id, chat_name, 
                                                                 last_message, count, message_list))
             else:
-                self.update_user_dict(dialog_id, last_message_id)
+                self.update_user_dict(dialog_id, last_message_id, user_id)
                 result_list.append(self.get_unread_history(vk_api, dialog_id, chat_name, 
                                                                 last_message, count, message_list))
         return result_list
@@ -211,7 +213,7 @@ class VkPeriodicCallback(PeriodicCallback):
         messages = history.get('items')
         for message in messages:
             message_list.append(message.get('body'))
-        return (user, message_list)
+        return (user, message_list, str(user_id))
 
 
     def _run(self):
@@ -267,13 +269,34 @@ def main():
         msg = bot.send_message(message.chat.id, 'Hello from bot')
 
 
+    @bot.message_handler(commands=['pm'])
+    def send_pm(message):
+        msg = bot.send_message(message.chat.id, 'I will send message')
+
+
+
+    @bot.callback_query_handler(func=lambda call: True)
+    def callback_inline(call):
+        print(user_dict)
+        print(str(user_id))
+        print(type(call.data))
+        pdb.set_trace()
+        VkPeriodicCallback.mark_messages_read(int(call.data))
+        print('marked')
+        VkPeriodicCallback.set_response_addressat(user_dict, user_id, call.data)
+        print('setted addressat')
+        
+
+
+
+
     # add requests to the bot into queue
-    @bot.message_handler(func=lambda message: True, conten_types=['text'])
+    @bot.message_handler(func=lambda message: True, content_types=['text'])
     def echo_all(message):
         markup = ReplyKeyboardRemove(selective=false)
         response = bot.send_message(message.chat.id, u'Please wait...', reply_markup=markup)
         bot.request_queue.put({
-            'text': messaget.text,
+            'text': message.text,
             'chat_id': message.chat.id,
             'username': message.chat.username,
             'last_name': message.chat.last_name,
