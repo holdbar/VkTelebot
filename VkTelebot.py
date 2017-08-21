@@ -175,8 +175,8 @@ class VkPeriodicCallback(PeriodicCallback):
                 pass
             else:
                 keyboard = types.InlineKeyboardMarkup()
-                keyboard.add(types.InlineKeyboardButton(text=text, callback_data=item[2]))
-                self.bot.send_message(user_id, "You've got a letter", reply_markup=keyboard)
+                keyboard.add(types.InlineKeyboardButton(text=user, callback_data=item[2]))
+                self.bot.send_message(user_id, text, reply_markup=keyboard)
         else:
             self.bot.send_message(user_id, 'You are not authorized')
 
@@ -289,14 +289,12 @@ def main():
     @bot.message_handler(commands=['pm'])
     def send_pm(message):
         print(str(user_dict))
-        pdb.set_trace()
         peer_id = user_dict[str(message.chat.id)]['addressat_id']
         VkPeriodicCallback.send_messages(peer_id, message.text[3:])
 
 
     @bot.callback_query_handler(func=lambda call: True)
     def callback_inline(call):
-        #pdb.set_trace()
         VkPeriodicCallback.mark_messages_read(call.data)
         VkPeriodicCallback.set_response_addressat(user_dict, user_id, call.data)
 
