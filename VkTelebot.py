@@ -1,4 +1,4 @@
-# coding: utf8
+# -*- coding: utf-8 -*-
 
 import local_config as config
 import tornado
@@ -10,12 +10,12 @@ from telebot import TeleBot, types
 import pdb
 
 
-
 # periodic launch of async tasks to process tasks in queue
 class CustomPeriodicCallback(PeriodicCallback):
     def __init__(self, request_queue, response_queue, callback_time, io_loop=None):
         if callback_time <= 0:
             raise ValueError("Periodic callback time must be positive")
+
         self.callback_time = callback_time
         self.io_loop = io_loop or IOLoop.current()
         self._running = False
@@ -29,6 +29,7 @@ class CustomPeriodicCallback(PeriodicCallback):
     def queue_callback(self):
         try:
             message = self.request_queue.get_nowait()
+
         except QueueEmpty:
             pass
         else:
@@ -49,11 +50,11 @@ class CustomPeriodicCallback(PeriodicCallback):
             return
         try:
             return self.queue_callback()
+
         except Exception:
             self.io_loop.handle_callback_exception(self.queue_callback)
         finally:
             self._schedule_next()
-
 
 
 # periodic lanch of requests reciever and reply sender
@@ -61,6 +62,7 @@ class BotPeriodicCallback(PeriodicCallback):
     def __init__(self, bot, callback_time, io_loop=None):
         if callback_time <= 0:
             raise ValueError("Periodic callback time must be positive")
+
         self.callback_time = callback_time
         self.io_loop = io_loop or IOLoop.current()
         self._running = False
@@ -88,12 +90,12 @@ class BotPeriodicCallback(PeriodicCallback):
             self._schedule_next()
 
 
-
 # periodic check of updates from VK
 class VkPeriodicCallback(PeriodicCallback):
     def __init__(self, bot, user_dict, callback_time, io_loop=None):
         if callback_time <= 0:
             raise ValueError("Periodic callback time must be positive")
+
         self.callback_time = callback_time
         self.io_loop = io_loop or IOLoop.current()
         self._running = False
@@ -107,6 +109,7 @@ class VkPeriodicCallback(PeriodicCallback):
         
         Helps to prevent downloading already downloaded messages.
         """
+
         self.dialog_id = str(dialog_id)
         self.last_message_id = int(last_message_id)
         self.user_id = user_id
@@ -114,31 +117,42 @@ class VkPeriodicCallback(PeriodicCallback):
                                                              'dialog_id' : int(dialog_id)}
 
 
-    def set_response_addressat(self, user_dict, user_id, addressat_id):
+    def set_response_addressat(user_dict, user_id, addressat_id):
         """Updates user_dict to set response addressat VK ID.
 
-        ID is retrieved by choosing message in telegram."""
-        self.user_dict = user_dict
-        self.user_id = str(user_id)
-        self.addressat_id = addressat_id
+        ID is retrieved by choosing message in telegram.
+        """
 
-        self.user_dict[self.user_id]['addressat_id'] = self.addressat_id
+        user_dict = user_dict
+        user_id = str(user_id)
+        addressat_id = addressat_id
+        user_dict[user_id]['addressat_id'] = addressat_id
 
 
-
-    def mark_messages_read(self, peer_id):
+    def mark_messages_read(peer_id):
         """Marks chosen dialog as read."""
+
         session = vk.AuthSession(app_id=config.APPID, user_login=config.LOGIN, 
                                 user_password=config.PASSWORD, scope='messages')
         vk_api = vk.API(session, v='5.38')
-
         vk_api.messages.markAsRead(peer_id=peer_id)  # for chat peer_id = 2000000000 + chat_id       
+
+
+    def send_messages(peer_id, message):
+        """Sends messages to VK."""
+
+        session = vk.AuthSession(app_id=config.APPID, user_login=config.LOGIN, 
+                                user_password=config.PASSWORD, scope='messages')
+        vk_api = vk.API(session, v='5.38')
+        vk_api.messages.send(peer_id=peer_id, message=message)
+
 
 
     def get(self):
         """Makes auth and then call method to retrieve unread messages.
 
-        Then pushes messages to telegram."""
+        Then pushes messages to telegram.
+        """
         
         # choose user to check updates(!!TODO CONNECT TO DB AND RUN LOOP TO CHOOSE USER)
         user_id = str(config.USERID)
@@ -172,6 +186,7 @@ class VkPeriodicCallback(PeriodicCallback):
 
         Then it prints user, user_id and messages.
         """
+
         response = vk_api.messages.getDialogs(unread=1)
         result_list = []
         items = response.get('items')
@@ -197,8 +212,8 @@ class VkPeriodicCallback(PeriodicCallback):
                 self.update_user_dict(dialog_id, last_message_id, user_id)
                 result_list.append(self.get_unread_history(vk_api, dialog_id, chat_name, 
                                                                 last_message, count, message_list))
-        return result_list
 
+        return result_list
 
 
     def get_unread_history(self, vk_api, dialog_id, chat_name, last_message, count, message_list):
@@ -213,6 +228,7 @@ class VkPeriodicCallback(PeriodicCallback):
         messages = history.get('items')
         for message in messages:
             message_list.append(message.get('body'))
+
         return (user, message_list, str(user_id))
 
 
@@ -240,6 +256,7 @@ class AppTeleBot(TeleBot, object):
     def send_response_messages(self):
         try:
             message = self.response_queue.get_nowait()
+
         except QueueEmpty:
             pass
         else:
@@ -271,24 +288,19 @@ def main():
 
     @bot.message_handler(commands=['pm'])
     def send_pm(message):
-        msg = bot.send_message(message.chat.id, 'I will send message')
-
+        print(str(user_dict))
+        pdb.set_trace()
+        peer_id = user_dict[str(message.chat.id)]['addressat_id']
+        VkPeriodicCallback.send_messages(peer_id, message.text[3:])
 
 
     @bot.callback_query_handler(func=lambda call: True)
     def callback_inline(call):
-        print(user_dict)
-        print(str(user_id))
-        print(type(call.data))
-        pdb.set_trace()
-        VkPeriodicCallback.mark_messages_read(int(call.data))
-        print('marked')
+        #pdb.set_trace()
+        VkPeriodicCallback.mark_messages_read(call.data)
         VkPeriodicCallback.set_response_addressat(user_dict, user_id, call.data)
-        print('setted addressat')
+
         
-
-
-
 
     # add requests to the bot into queue
     @bot.message_handler(func=lambda message: True, content_types=['text'])
@@ -307,14 +319,11 @@ def main():
 
     ioloop = tornado.ioloop.IOLoop.instance()
 
-
     BotPeriodicCallback(bot, 5000, ioloop).start()
     CustomPeriodicCallback(request_queue, response_queue, 5000, ioloop).start()
     VkPeriodicCallback(bot, user_dict, 5000, ioloop).start()
 
-
     ioloop.start()
-
 
 
 if __name__ == "__main__":
