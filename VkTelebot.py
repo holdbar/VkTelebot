@@ -114,7 +114,7 @@ class VkPeriodicCallback(PeriodicCallback):
         self.last_message_id = int(last_message_id)
         self.user_id = user_id
         self.user_dict[self.user_id]['dialog_dict'][self.dialog_id] = {'last_message_id':self.last_message_id, 
-                                                             'dialog_id' : int(dialog_id)}
+                                                                       'dialog_id' : int(dialog_id)}
 
 
     def set_response_addressat(user_dict, user_id, addressat_id):
@@ -156,13 +156,13 @@ class VkPeriodicCallback(PeriodicCallback):
         
         # choose user to check updates(!!TODO CONNECT TO DB AND RUN LOOP TO CHOOSE USER)
         user_id = str(config.USERID)
-
         # authentication with user's credentials
         session = vk.AuthSession(app_id=config.APPID, user_login=config.LOGIN, 
                                 user_password=config.PASSWORD, scope='messages')
         vk_api = vk.API(session, v='5.38')
 
         if int(user_id) == config.USERID:
+            #pdb.set_trace()
             result_list = self.get_messages(vk_api, user_id)
             text = ''
             for item in result_list:
@@ -171,12 +171,13 @@ class VkPeriodicCallback(PeriodicCallback):
                 for l in item[1]:
                     one_text = one_text + l +'\n'
                 text = text + user + '\n' + one_text + '\n'
-            if text == '':
-                pass
-            else:
-                keyboard = types.InlineKeyboardMarkup()
-                keyboard.add(types.InlineKeyboardButton(text=user, callback_data=item[2]))
-                self.bot.send_message(user_id, text, reply_markup=keyboard)
+                if text == '':
+                    pass
+                else:
+                    keyboard = types.InlineKeyboardMarkup()
+                    keyboard.add(types.InlineKeyboardButton(text=user, callback_data=item[2]))
+                    self.bot.send_message(user_id, text, reply_markup=keyboard)
+                    text = ''
         else:
             self.bot.send_message(user_id, 'You are not authorized')
 
@@ -188,6 +189,7 @@ class VkPeriodicCallback(PeriodicCallback):
         """
 
         response = vk_api.messages.getDialogs(unread=1)
+        # print(response)
         result_list = []
         items = response.get('items')
         for item in items:
@@ -202,6 +204,7 @@ class VkPeriodicCallback(PeriodicCallback):
                 chat_name = ''
                 dialog_id = str(last_message.get('user_id'))
             if dialog_id in self.user_dict[user_id]['dialog_dict']:
+
                 if int(last_message_id) <= self.user_dict[user_id]['dialog_dict'][dialog_id]['last_message_id']:
                     pass
                 else:
@@ -220,16 +223,16 @@ class VkPeriodicCallback(PeriodicCallback):
         """Gets unread history by dialog_id."""
         user_id = last_message.get('user_id')
         user = vk_api.users.get(user_id=user_id)
-        user = user[0].get('last_name') + ' ' + user[0].get('first_name') + '('+str(user_id)+')' +' ' + chat_name
+        user = user[0].get('last_name') + ' ' + user[0].get('first_name') + ' ' + chat_name
         if chat_name == '':
             history = vk_api.messages.getHistory(user_id=dialog_id,start_message=-1,count=count)
         else:
-            history = vk_api.messages.getHistory(chat_id=dialog_id,start_message=-1,count=count)
+            history = vk_api.messages.getHistory(user_id=dialog_id,start_message=-1,count=count)
         messages = history.get('items')
         for message in messages:
             message_list.append(message.get('body'))
 
-        return (user, message_list, str(user_id))
+        return (user, message_list, str(dialog_id))
 
 
     def _run(self):
@@ -288,7 +291,6 @@ def main():
 
     @bot.message_handler(commands=['pm'])
     def send_pm(message):
-        print(str(user_dict))
         peer_id = user_dict[str(message.chat.id)]['addressat_id']
         VkPeriodicCallback.send_messages(peer_id, message.text[3:])
 
