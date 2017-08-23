@@ -117,6 +117,32 @@ class VkPeriodicCallback(PeriodicCallback):
                                                                        'dialog_id' : int(dialog_id)}
 
 
+    def get_contacts(bot, tele_id):
+        """Returns list of your contacts."""
+
+        if tele_id == config.USERID:
+            session = vk.AuthSession(app_id=config.APPID, user_login=config.LOGIN, 
+                                    user_password=config.PASSWORD, scope='messages')
+            vk_api = vk.API(session, v='5.38')
+            response = vk_api.messages.getDialogs()
+            for item in response['items']:
+                # pdb.set_trace()
+                if item['message'].get('chat_id'):
+                    chat_name = item['message']['title']
+                    dialog_id = str(2000000000 + item['message']['chat_id'])
+                else:
+                    user_id = item['message'].get('user_id')
+                    user = vk_api.users.get(user_id=user_id)
+                    chat_name = user[0].get('last_name') + ' ' + user[0].get('first_name')
+                    dialog_id = str(user_id)
+
+                keyboard = types.InlineKeyboardMarkup()
+                keyboard.add(types.InlineKeyboardButton(text=chat_name, callback_data=dialog_id))
+                bot.send_message(tele_id, 'Contact:', reply_markup=keyboard)
+        else:
+            bot.send_message(tele_id, 'You are not authorized')
+
+
     def set_response_addressat(user_dict, user_id, addressat_id):
         """Updates user_dict to set response addressat VK ID.
 
@@ -127,6 +153,7 @@ class VkPeriodicCallback(PeriodicCallback):
         user_id = str(user_id)
         addressat_id = addressat_id
         user_dict[user_id]['addressat_id'] = addressat_id
+
 
 
     def mark_messages_read(peer_id):
@@ -293,6 +320,11 @@ def main():
     def send_pm(message):
         peer_id = user_dict[str(message.chat.id)]['addressat_id']
         VkPeriodicCallback.send_messages(peer_id, message.text[3:])
+
+
+    @bot.message_handler(commands=['cont'])
+    def get_contacts(message):
+        VkPeriodicCallback.get_contacts(bot, message.chat.id)
 
 
     @bot.callback_query_handler(func=lambda call: True)
